@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html>
+
+<style>
+    body {
+      font: 12px sans-serif;
+      background-color: #EEE;
+    }
+    
+    .axis path,
+    .axis line {
+      fill: none;
+      stroke: #000;
+      shape-rendering: crispEdges;
+    }
+    
+    .dot {
+      stroke: #000;
+    }
+    
+    .tooltip {
+      position: absolute;
+      max-width: 200px;
+      height: auto;
+      pointer-events: none;
+      background-color: white;
+      color: black;
+      border: 2px solid black;
+      border-radius: 5px;
+      padding: 5px;
+    }
+
+    svg {
+        background-color: white;
+    }
+
+    .investment {
+        /*stroke: #000;*/
+    }
+
+
+</style>
+
+<!-- <script src="https://d3js.org/d3.v4.js"></script> -->
+<script src="d3.v4.js"></script>
+
+<!-- Create a div where the circle will take place -->
+<div id="ipf-map"></div>
+<!-- "http://localhost:8008/soundtrack_composers.csv" -->
+
+<script>
+
+    // set the dimensions and margins of the graph
+    var margin = {top: 20, right: 20, bottom: 20, left: 20},
+        width = 480 - margin.left - margin.right,
+        height = 480 - margin.top - margin.bottom;
+    
+    // append the SVG object to the body of the page
+    var SVG = d3.select("#ipf-map")
+        .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+            .attr("transform",
+                "translate(" + margin.left + "," + margin.top + ")");
+    
+    var rect = SVG.append("rect")
+            .attr("width", width)
+            .attr("height", height)
+            .style("fill", "none")
+            .style("pointer-events", "all")
+            .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')')
+    
+
+        
+    //Read the data
+    d3.csv("http://localhost:8008/soundtrack_composers.csv", function(data) {
+        var gpms = new Array();
+        data.forEach(function(d) {
+                if(!gpms.includes(d.gpm)) {
+                    gpms.push(d.gpm)
+                    d3.select("#controls")
+                    .append("input")
+                        .attr("type","checkbox")
+                        .attr("checked","checked")
+                        .attr("class","gpm-switch")
+                        .attr("gpm",d.gpm)
+                    d3.select("#controls")
+                    .append("label")
+                        .text(d.gpm).append("br")
+                }
+            });
+
+      // Add X axis
+        var x = d3.scaleLinear()
+            .domain([0, 1.1])
+            .range([0, width ]);
+        var xAxis = SVG.append("g")
+            .attr("transform", "translate(0," + height + ")")
+            .call( d3.axisBottom(x).tickValues([0,0.4,0.9,1]).tickFormat("") );
+    
+        // Add Y axis
+        var y = d3.scaleLinear()
+            .domain([0, 1.1])
+            .range([ height, 0]);
+        var yAxis = SVG.append("g")
+            .call( d3.axisLeft(y).tickValues([0,0.4,0.9,1]).tickFormat("") );
+        
+
+        // Add a clipPath: everything out of this area won't be drawn.
+        var clip = SVG.append("defs").append("SVG:clipPath")
+            .attr("id", "clip")
+            .append("SVG:rect")
+            .attr("width", width )
+            .attr("height", height )
+            .attr("x", 0)
+            .attr("y", 0);
+        
+        // Create the scatter variable: where both the circles and the brush take place
+        var scatter = SVG.append('g')
+            .attr("clip-path", "url(#clip)")
+
+        var tooltip = d3.select("body").append("div")
+            .attr("class", "tooltip")
+            .style("opacity", 0);
+            
+        // Text
+        scatter
+            .selectAll(".investment-name")
+            .data(data)
+            .enter()
+            .append("text")
+            .attr("class", "investment-name")
+            .attr("x", function (d) { return x(d.t_uncertainty)+8; } )
+            .attr("y", function (d) { return y(d.m_uncertainty)+5; } )
+            //.attr("transform", "rotate(-45)" )
+            .text(function(d) { return d.name; })
+            .attr("font-family", "sans-serif")
+            .attr("font-size", "10px")
+            .attr("fill", "#666")
+            .attr("gpm", function (d) { return d.gpm; })
+            .style("opacity", 1);
+
+        // Circles
+        scatter
+            .selectAll(".investment")
+            .data(data)
+            .enter()
+            .append("circle")
+            .attr("class", "investment")
+            .attr("cx", function (d) { return x(d.t_uncertainty); } )
+            .attr("cy", function (d) { return y(d.m_uncertainty); } )
+            .attr("r", 8)
+            .style("fill", "#61a3F9")
+            .style("opacity", 0.5)
+            .on("mouseover", function(d) {
+                console.log("over!");
+                tooltip.transition()
+                    .duration(100)
+                    .style("opacity", 1);
+                tooltip.html("<b>"+d.name+"</b><br/>"+d.description+"<br/><i>Owner: "+d.gpm+"</i>")
+                    .style("left", (d3.event.pageX + 5) + "px")
+                    .style("top", (d3.event.pageY - 28) + "px");
+            })
+            .on("mouseout", function(d) {
+                tooltip.transition()
+                    .duration(500)
+                    .style("opacity", 0);
+            });
+        
+
+
+        // Set the zoom and Pan features: how much you can zoom, on which part, and what to do when there is a zoom
+        var zoom = d3.zoom()
+            .scaleExtent([1, 10])  // This control how much you can unzoom (x0.5) and zoom (x20)
+            .translateExtent([[0, 0], [width, height]])
+            .extent([[0, 0], [width, height]])
+            .on("zoom", updateChart);
+
+        rect.call(zoom);
+
+        
+        // A function that updates the chart when the user zoom and thus new boundaries are available
+        function updateChart() {
+            console.log("zooming...");
+            // recover the new scale
+            var newX = d3.event.transform.rescaleX(x);
+            var newY = d3.event.transform.rescaleY(y);
+        
+            // update axes with these new boundaries
+            xAxis.call(d3.axisBottom(newX).tickValues([0,0.4,0.9,1]).tickFormat(""))
+            yAxis.call(d3.axisLeft(newY).tickValues([0,0.4,0.9,1]).tickFormat(""))
+        
+            // update circle position
+            scatter
+            .selectAll("circle")
+            .attr('cx', function(d) {return newX(d.t_uncertainty)})
+            .attr('cy', function(d) {return newY(d.m_uncertainty)});
+            scatter
+            .selectAll("text")
+            .attr('x', function(d) {return newX(d.t_uncertainty)+8})
+            .attr('y', function(d) {return newY(d.m_uncertainty)+5});
+        }
+    
+    })
+
+    window.onload = function() {
+        var names = document.querySelectorAll(".investment-name")
+        document.querySelector("#show-names").onclick = function(event){
+            if(this.checked) {
+                names.forEach(element => {
+                    element.style.opacity = 1;
+                });
+                document.querySelectorAll(".gpm-switch").forEach(element => element.checked=true);
+            }
+            else {
+                names.forEach(element => {
+                    element.style.opacity = 0;
+                });
+                document.querySelectorAll(".gpm-switch").forEach(element => element.checked=false);
+            }
+        }
+
+        document.querySelectorAll(".gpm-switch").forEach(element =>
+            element.onclick = function(event){
+                var thisGpm = this.getAttribute("gpm")
+                if(this.checked) {
+                    names.forEach(element => {
+                        console.log("showing "+thisGpm)
+                        if(element.getAttribute("gpm")==thisGpm)
+                            element.style.opacity = 1;
+                    });
+                }
+                else {
+                    names.forEach(element => {
+                        console.log("hiding "+thisGpm)
+                        if(element.getAttribute("gpm")==thisGpm)
+                            element.style.opacity = 0;
+                    });
+                }
+            }
+        )
+
+    };
+
+    </script>
+    <body>
+        <div id="controls">
+            <input id="show-names" type="checkbox" checked /><label><b>Show/hide all GPMs</b></label><br />
+        </div>
+    </body>
+</html>
