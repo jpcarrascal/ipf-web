@@ -42,8 +42,8 @@
 
 </style>
 
-<!-- <script src="https://d3js.org/d3.v4.js"></script> -->
-<script src="d3.v4.js"></script>
+<script src="https://d3js.org/d3.v4.js"></script>
+<!--<script src="d3.v4.js"></script> -->
 
 <!-- Create a div where the circle will take place -->
 <div id="ipf-map"></div>
@@ -75,7 +75,7 @@
 
         
     //Read the data
-    d3.csv("http://localhost:8008/soundtrack_composers.csv", function(data) {
+    d3.csv("soundtrack_composers.csv", function(data) {
         var gpms = new Array();
         data.forEach(function(d) {
                 if(!gpms.includes(d.gpm)) {
